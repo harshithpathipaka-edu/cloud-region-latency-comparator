@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Region Latency Comparator (AWS Powered)</title>
+    <style>
+        :root {
+            --primary: #232f3e;
+            --primary-hover: #131a22;
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border-color: #e1e4e8;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: var(--bg-color);
+            color: var(--text-main);
+        }
+
+        .container {
+            max-width: 750px;
+            margin: 30px auto;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        h2 {
+            margin-top: 0;
+            color: var(--primary);
+            font-size: 24px;
+        }
+
+        p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .filters-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #fafbfc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: #eef2f7;
+            color: var(--primary);
+            border: 1px solid #d0d7de;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .filter-btn:hover {
+            background: #d8e2ec;
+        }
+
+        .regions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 4px;
+        }
+
+        .region-checkbox-label {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .region-checkbox-label:hover {
+            background: #f1f3f5;
+        }
+
+        .region-checkbox-label input {
+            margin-right: 8px;
+            accent-color: var(--primary);
+        }
+
+        .action-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .action-button:hover {
+            background: var(--primary-hover);
+        }
+
+        .action-button:disabled {
+            background: #9aa0a6;
+            cursor: not-allowed;
+        }
+
+        #results {
+            margin-top: 25px;
+        }
+
+        .results-header {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 12px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .winner-row {
+            border: 2px solid #10b981;
+            background: #ecfdf5 !important;
+        }
+
+        .led {
+            height: 10px;
+            width: 10px;
+            background-color: #cbd5e1;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .led-on {
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-fast { background: #d1fae5; color: #065f46; }
+        .badge-moderate { background: #fef3c7; color: #92400e; }
+        .badge-slow { background: #fee2e2; color: #991b1b; }
+        .badge-failed { background: #f3f4f6; color: #4b5563; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2>Cloud Region Latency Comparator</h2>
+            <p>Select target regions and run diagnostic powered by AWS Lambda and API Gateway.</p>
+            
+            <!-- Filter & Selection Controls -->
+            <div class="filters-section">
+                <div class="filter-buttons">
+                    <button class="filter-btn" onclick="filterContinent('all')">All Regions</button>
+                    <button class="filter-btn" onclick="filterContinent('India & Asia')">🇮🇳 India & Asia</button>
+                    <button class="filter-btn" onclick="filterContinent('Americas')">🌎 Americas</button>
+                    <button class="filter-btn" onclick="filterContinent('Europe')">🇪🇺 Europe</button>
+                    <button class="filter-btn" onclick="toggleSelectAll(true)">Select All</button>
+                    <button class="filter-btn" onclick="toggleSelectAll(false)">Deselect All</button>
+                </div>
+                <div class="regions-grid" id="regionsGrid">
+                    <!-- Dynamic checkboxes injected here -->
+                </div>
+            </div>
+
+            <button class="action-button" id="testBtn" onclick="runCloudLatencyTest()">Run Cloud Latency Test</button>
+            
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script>
+    const regions = [
+        { id: "mumbai", name: "Mumbai, India (ap-south-1)", continent: "India & Asia" },
+        { id: "hyderabad", name: "Hyderabad, India (ap-south-2)", continent: "India & Asia" },
+        { id: "singapore", name: "Singapore (ap-southeast-1)", continent: "India & Asia" },
+        { id: "tokyo", name: "Tokyo, Japan (ap-northeast-1)", continent: "India & Asia" },
+        { id: "n_virginia", name: "N. Virginia, USA (us-east-1)", continent: "Americas" },
+        { id: "ireland", name: "Ireland (eu-west-1)", continent: "Europe" },
+        { id: "frankfurt", name: "Frankfurt, Germany (eu-central-1)", continent: "Europe" }
+    ];
+
+    const API_ENDPOINT = "https://lezklg25gg.execute-api.ap-southeast-2.amazonaws.com/test";
+
+    function renderRegionCheckboxes() {
+        const grid = document.getElementById('regionsGrid');
+        grid.innerHTML = regions.map(reg => `
+            <label class="region-checkbox-label">
+                <input type="checkbox" value="${reg.name}" checked>
+                ${reg.name}
+            </label>
+        `).join('');
+    }
+
+    function toggleSelectAll(selectState) {
+        document.querySelectorAll('.regions-grid input[type="checkbox"]').forEach(cb => {
+            cb.checked = selectState;
+        });
+    }
+
+    function filterContinent(continentName) {
+        document.querySelectorAll('.regions-grid input[type="checkbox"]').forEach(cb => {
+            const regData = regions.find(r => r.name === cb.value);
+            if (continentName === 'all' || (regData && regData.continent === continentName)) {
+                cb.checked = true;
+            } else {
+                cb.checked = false;
+            }
+        });
+    }
+
+    async function runCloudLatencyTest() {
+        const resultsDiv = document.getElementById('results');
+        const testBtn = document.getElementById('testBtn');
+        const selectedCheckboxes = document.querySelectorAll('.regions-grid input[type="checkbox"]:checked');
+
+        if (selectedCheckboxes.length === 0) {
+            alert("Please select at least one region to test.");
+            return;
+        }
+
+        testBtn.disabled = true;
+        testBtn.innerText = "Querying AWS Lambda...";
+        resultsDiv.innerHTML = `<div class="results-header">Results</div><p>Executing cloud-side diagnostic across selected regions...</p>`;
+
+        try {
+            const response = await fetch(API_ENDPOINT);
+            let data = await response.json();
+            
+            // Unpack if wrapped in a stringified body
+            if (typeof data === "string") {
+                data = JSON.parse(data);
+            }
+            if (data.body && typeof data.body === "string") {
+                data = JSON.parse(data.body);
+            }
+
+            if (!data || !Array.isArray(data.results)) {
+                throw new Error("Invalid payload: " + JSON.stringify(data));
+            }
+
+            const selectedNames = Array.from(selectedCheckboxes).map(cb => cb.value);
+            const filteredResults = data.results.filter(r => selectedNames.includes(r.region));
+
+            let html = `<div class="results-header">Cloud Results Comparison (Fastest: <span style="color:#10b981">${data.fastest_region}</span>)</div>`;
+            
+            filteredResults.forEach(res => {
+                const isWinner = res.region === data.fastest_region;
+                let badgeClass = "badge-fast";
+                let badgeText = `${res.latency} ms (Fast)`;
+                
+                if (res.status === "failed") {
+                    badgeClass = "badge-failed";
+                    badgeText = "Failed / Timeout";
+                } else if (res.latency > 150 && res.latency <= 350) {
+                    badgeClass = "badge-moderate";
+                    badgeText = `${res.latency} ms (Moderate)`;
+                } else if (res.latency > 350) {
+                    badgeClass = "badge-slow";
+                    badgeText = `${res.latency} ms (High)`;
+                }
+
+                html += `
+                    <div class="result-row ${isWinner ? 'winner-row' : ''}">
+                        <span>
+                            <span class="led ${isWinner ? 'led-on' : ''}"></span>
+                            <strong>${res.region}</strong> ${isWinner ? '🏆 <strong>(Winner LED Lit)</strong>' : ''}
+                        </span> 
+                        <span class="badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                `;
+            });
+
+            resultsDiv.innerHTML = html;
+        } catch (error) {
+            resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        } finally {
+            testBtn.disabled = false;
+            testBtn.innerText = "Run Cloud Latency Test";
+        }
+    }
+
+    window.onload = renderRegionCheckboxes;
+</script>
+</body>
+</html>
